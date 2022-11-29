@@ -89,6 +89,8 @@ func main() {
 
 	// If there has been an error reading the file displays it.
 	if err = scanner.Err(); err != nil {
-		log.Println(err)
+		panic(err)
 	}
+
+	log.Println("The file has been sent")
 }
