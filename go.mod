@@ -3,6 +3,7 @@ module github.com/Anthony-Jhoiro/cyber-extractor
 go 1.18
 
 require (
+	github.com/google/uuid v1.3.0
 	github.com/miekg/dns v1.1.50
 	golang.org/x/net v0.2.0
 )
