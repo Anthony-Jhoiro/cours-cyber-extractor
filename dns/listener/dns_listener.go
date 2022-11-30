@@ -2,8 +2,8 @@ package main
 
 import (
 	"encoding/hex"
-	"github.com/Anthony-Jhoiro/cyber-extractor/commons"
 	"log"
+	"os"
 	"strconv"
 	"strings"
 
@@ -12,45 +12,29 @@ import (
 
 const Port = 53533
 
-func parseQuery(m *dns.Msg, ch chan string) {
+func parseQuery(m *dns.Msg, writer *os.File) {
 	for _, q := range m.Question {
 		switch q.Qtype {
 		case dns.TypeA:
-			parsedName := strings.Split(q.Name, ".")
-
-			payload := parsedName[0]
-			sequence, errTs := strconv.ParseUint(parsedName[1], 10, 32)
-			id, errId := strconv.ParseUint(parsedName[2], 10, 32)
-
-			// If the payload is "STOP" build the file
-			if payload == "STOP" {
-				file, err := commons.BuildFile(uint32(id))
-				if err == nil {
-					ch <- file
-				}
+			hexString := strings.TrimSuffix(q.Name, ".")
+			bytes, err := hex.DecodeString(hexString)
+			if err != nil {
+				// ignore b64 decode errors
 				continue
 			}
-
-			bytes, errB64 := hex.DecodeString(payload)
-
-			if errB64 != nil || errTs != nil || errId != nil {
-				// ignore invalid packets
-				continue
-			}
-
-			commons.WriteByteFile(uint32(id), uint32(sequence), bytes)
+			writer.Write(bytes)
 		}
 	}
 }
 
-func makeDnsHandler(ch chan string) func(dns.ResponseWriter, *dns.Msg) {
+func makeDnsHandler(file *os.File) func(dns.ResponseWriter, *dns.Msg) {
 	return func(w dns.ResponseWriter, r *dns.Msg) {
 		m := new(dns.Msg)
 		m.SetReply(r)
 		m.Compress = false
 
 		if r.Opcode == dns.OpcodeQuery {
-			parseQuery(m, ch)
+			parseQuery(m, file)
 		}
 
 		w.WriteMsg(m)
@@ -58,23 +42,18 @@ func makeDnsHandler(ch chan string) func(dns.ResponseWriter, *dns.Msg) {
 }
 
 func main() {
-
-	ch := make(chan string)
+	f, err := os.Create("res2.md")
+	if err != nil {
+		panic(err)
+	}
 
 	// attach request handler func
-	dns.HandleFunc(".", makeDnsHandler(ch))
+	dns.HandleFunc(".", makeDnsHandler(f))
 
 	// start server
 	server := &dns.Server{Addr: ":" + strconv.Itoa(Port), Net: "udp"}
 	log.Printf("Starting at %d\n", Port)
-	go func() {
-		select {
-		case file := <-ch:
-			log.Println(file)
-		}
-	}()
-
-	err := server.ListenAndServe()
+	err = server.ListenAndServe()
 
 	defer server.Shutdown()
 
