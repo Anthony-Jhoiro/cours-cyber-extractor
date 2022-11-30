@@ -15,11 +15,12 @@ import (
 
 const (
 	MaxPayloadSize = 65507
-	// PingDelay delay between each ping in milliseconds
+	// PingDelay delay between each ping in milliseconds. Otherwise, not all the ping cn be received
 	PingDelay = 5
 )
 
-// noVerifySplitBytes is a simple split function that simply returns its content
+// noVerifySplitBytes is a simple split function that simply returns its content.
+// It is just used to make reading bytes easier.
 func noVerifySplitBytes(data []byte, atEOF bool) (advance int, token []byte, err error) {
 	if atEOF && len(data) == 0 {
 		return 0, nil, nil
@@ -27,18 +28,22 @@ func noVerifySplitBytes(data []byte, atEOF bool) (advance int, token []byte, err
 	return len(data), data, nil
 }
 
+//intTo4ByteArray cast an int into a array of 4 bytes
 func intTo4ByteArray(i uint32) []byte {
+	// Create an array of 4 bytes
 	bs := make([]byte, 4)
+	// Add the int in the byte array
 	binary.LittleEndian.PutUint32(bs, i)
 	return bs
 }
 
 // buildICMPEchoRequest build an ICMP echo request with the given data as a byte array
-func buildICMPEchoRequest(id uint32, seq uint32, data []byte) *icmp.Message {
+func buildICMPEchoRequest(id uint32, sequenceNumber uint32, data []byte) *icmp.Message {
 	buff := new(bytes.Buffer)
 
+	// Add the data elements to the buffer
 	buff.Write(intTo4ByteArray(id))
-	buff.Write(intTo4ByteArray(seq))
+	buff.Write(intTo4ByteArray(sequenceNumber))
 	buff.Write(data)
 
 	// Build the echo request
@@ -79,6 +84,7 @@ func main() {
 	destination := os.Args[1]
 	filename := os.Args[2]
 
+	// Generate an id from the timestamp and cast it to uint32
 	id := uint32(time.Now().Unix() % math.MaxInt)
 
 	// Create a connection to the given destination using udp4 to listen with no privilege.
@@ -99,6 +105,7 @@ func main() {
 	// fileReader makes it easier to read the file by bytes
 	fileReader := bufio.NewReaderSize(f, MaxPayloadSize)
 
+	// Create a scanner to parse the file
 	scanner := bufio.NewScanner(fileReader)
 	scanner.Split(noVerifySplitBytes)
 
@@ -107,7 +114,7 @@ func main() {
 	for scanner.Scan() {
 		sendData(conn, id, sequenceCount, scanner.Bytes())
 
-		time.Sleep(5 * time.Millisecond)
+		time.Sleep(PingDelay * time.Millisecond)
 		sequenceCount += 1
 	}
 
