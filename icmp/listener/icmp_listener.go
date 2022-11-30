@@ -69,24 +69,11 @@ func readRequests(conn *icmp.PacketConn) {
 
 		// Check id the received message is a Stop request. If yes compile the file otherwise, write a temporary file
 		if reflect.DeepEqual(payload, icmpcommons.StopSequence) {
-			handleStopFile(id)
+			commons.HandleStopFile(id)
 		} else {
 			commons.WriteByteFile(id, seq, payload)
 		}
 	}
-}
-
-//handleStopFile build the file from all the temporary packets
-func handleStopFile(id uint32) {
-	log.Printf("Recieved Stop file\n")
-
-	// Build the files
-	fileName, err := commons.BuildFile(id)
-	if err != nil {
-		log.Printf("[ERROR] %v\n", err)
-	}
-
-	log.Printf("Recieved File %s", fileName)
 }
 
 func main() {

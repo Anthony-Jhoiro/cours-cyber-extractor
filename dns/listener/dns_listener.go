@@ -10,72 +10,73 @@ import (
 	"github.com/miekg/dns"
 )
 
-const Port = 53533
+//DnsPort Port for the dns server
+const DnsPort = 53533
 
-func parseQuery(m *dns.Msg, ch chan string) {
+func handleRecords(m *dns.Msg) {
+	// Loop over each record in the dns request
 	for _, q := range m.Question {
-		switch q.Qtype {
-		case dns.TypeA:
-			parsedName := strings.Split(q.Name, ".")
 
-			payload := parsedName[0]
-			sequence, errTs := strconv.ParseUint(parsedName[1], 10, 32)
-			id, errId := strconv.ParseUint(parsedName[2], 10, 32)
-
-			// If the payload is "STOP" build the file
-			if payload == "STOP" {
-				file, err := commons.BuildFile(uint32(id))
-				if err == nil {
-					ch <- file
-				}
-				continue
-			}
-
-			bytes, errB64 := hex.DecodeString(payload)
-
-			if errB64 != nil || errTs != nil || errId != nil {
-				// ignore invalid packets
-				continue
-			}
-
-			commons.WriteByteFile(uint32(id), uint32(sequence), bytes)
+		// filter on A records
+		if q.Qtype != dns.TypeA {
+			continue
 		}
+
+		// Split the url at the '.' symbol
+		parsedName := strings.Split(q.Name, ".")
+
+		// Parse the Url
+		payload := parsedName[0]
+		sequence, errTs := strconv.ParseUint(parsedName[1], 10, 32)
+		id, errId := strconv.ParseUint(parsedName[2], 10, 32)
+
+		// If the payload is "STOP" build the file
+		if payload == "STOP" {
+			commons.HandleStopFile(uint32(id))
+			continue
+		}
+
+		// Decode the hexadecimal into binary
+		bytes, errB64 := hex.DecodeString(payload)
+
+		// ignore invalid packets
+		if errB64 != nil || errTs != nil || errId != nil {
+			continue
+		}
+
+		// Add the data in a temp file
+		commons.WriteByteFile(uint32(id), uint32(sequence), bytes)
 	}
 }
 
-func makeDnsHandler(ch chan string) func(dns.ResponseWriter, *dns.Msg) {
-	return func(w dns.ResponseWriter, r *dns.Msg) {
-		m := new(dns.Msg)
-		m.SetReply(r)
-		m.Compress = false
+//dnsHandler handles nex dns requests
+func dnsHandler(w dns.ResponseWriter, r *dns.Msg) {
+	// Basic handle of the request to "mock" a real response
+	m := new(dns.Msg)
+	m.SetReply(r)
+	m.Compress = false
 
-		if r.Opcode == dns.OpcodeQuery {
-			parseQuery(m, ch)
-		}
-
-		w.WriteMsg(m)
+	// handle the records in the request
+	if r.Opcode == dns.OpcodeQuery {
+		handleRecords(m)
 	}
+
+	// Send the response to the emitter
+	w.WriteMsg(m)
 }
 
 func main() {
 
-	ch := make(chan string)
-
 	// attach request handler func
-	dns.HandleFunc(".", makeDnsHandler(ch))
+	dns.HandleFunc(".", dnsHandler)
 
 	// start server
-	server := &dns.Server{Addr: ":" + strconv.Itoa(Port), Net: "udp"}
-	log.Printf("Starting at %d\n", Port)
-	go func() {
-		select {
-		case file := <-ch:
-			log.Println(file)
-		}
-	}()
+	server := &dns.Server{Addr: ":" + strconv.Itoa(DnsPort), Net: "udp"}
+	log.Printf("Starting at %d\n", DnsPort)
 
 	err := server.ListenAndServe()
 
+	// Shutdown the server when the program exit
 	defer server.Shutdown()
 
 	if err != nil {
