@@ -9,6 +9,7 @@ import (
 	"golang.org/x/net/ipv4"
 	"log"
 	"math"
+	"net"
 	"os"
 	"time"
 )
@@ -62,7 +63,7 @@ func buildICMPEchoRequest(id uint32, sequenceNumber uint32, data []byte) *icmp.M
 }
 
 // sendData build and send an icmp echo request to the given connection with the given bytes
-func sendData(conn *icmp.PacketConn, id uint32, seq uint32, data []byte) {
+func sendData(conn *icmp.PacketConn, id uint32, seq uint32, data []byte, destination string) {
 	log.Printf("Send [%d] - %d - %d bytes\n", id, seq, len(data))
 
 	msg := buildICMPEchoRequest(id, seq, data)
@@ -73,7 +74,13 @@ func sendData(conn *icmp.PacketConn, id uint32, seq uint32, data []byte) {
 		panic(err)
 	}
 
-	_, err = conn.WriteTo(msgBytes, conn.LocalAddr())
+	// Resolve udp addr
+	addr, err := net.ResolveIPAddr("ip", "192.168.0.1")
+	if err != nil {
+		panic(err)
+	}
+
+	_, err = conn.WriteTo(msgBytes, &net.UDPAddr{IP: addr.IP, Zone: addr.Zone})
 	if err != nil {
 		panic(err)
 	}
@@ -88,7 +95,7 @@ func main() {
 	id := uint32(time.Now().Unix() % math.MaxInt)
 
 	// Create a connection to the given destination using udp4 to listen with no privilege.
-	conn, err := icmp.ListenPacket("udp4", destination)
+	conn, err := icmp.ListenPacket("udp4", "")
 	if err != nil {
 		panic(err)
 	}
@@ -112,13 +119,13 @@ func main() {
 	var sequenceCount uint32 = 1
 	// Start scanning the file and for each read bytes, send it to the destination.
 	for scanner.Scan() {
-		sendData(conn, id, sequenceCount, scanner.Bytes())
+		sendData(conn, id, sequenceCount, scanner.Bytes(), destination)
 
 		time.Sleep(PingDelay * time.Millisecond)
 		sequenceCount += 1
 	}
 
-	sendData(conn, id, sequenceCount, icmpcommons.StopSequence)
+	sendData(conn, id, sequenceCount, icmpcommons.StopSequence, destination)
 
 	// If there has been an error reading the file displays it.
 	if err = scanner.Err(); err != nil {
