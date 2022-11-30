@@ -44,7 +44,7 @@ and `###STOP###` (encoded in binary) as the payload.
 
 ### The listener
 
-The listener listen for any icmp request. For non Stop message, it save the file in the `results` directory. It keeps
+The listener is simply a DNS server that knows no records. For non Stop message, it save the file in the `results` directory. It keeps
 one file per request.
 Whe the stop request is received. All the files are read and concatenate into a single file that will be located in
 the `results` directory.
