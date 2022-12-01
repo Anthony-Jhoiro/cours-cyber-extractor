@@ -1,5 +1,7 @@
 # Extractor tools
 
+This project contains 2 listener and emitters for extraction using ICMP and DNS. they run file with linux listener and linux emitter. Although the go made programms should work on any OS if the Go language can be compile for its platform and arch. See [https://gist.github.com/asukakenji/f15ba7e588ac42795f421b48b8aede63](https://gist.github.com/asukakenji/f15ba7e588ac42795f421b48b8aede63)
+
 ## Requirements
 
 To build the project, you will need to have go and git installed on your system,
